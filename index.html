@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        #chessboard {
+            border: 2px solid #333;
+        }
+        #startButton {
+            margin: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <button id="startButton">Start Game</button>
+    <canvas id="chessboard" width="400" height="400"></canvas>
+    <div id="status">Press Start to begin</div>
+
+    <script>
+        const canvas = document.getElementById('chessboard');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const status = document.getElementById('status');
+        const squareSize = 50;
+        let board = [];
+        let selectedPiece = null;
+        let currentPlayer = 'w';
+        let gameStarted = false;
+
+        // Piece representation
+        const pieces = {
+            'wp': '♙', 'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔',
+            'bp': '♟', 'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚'
+        };
+
+        // Initialize the board
+        function initBoard() {
+            board = [
+                ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+                ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+                ['', '', '', '', '', '', '', ''],
+                ['', '', '', '', '', '', '', ''],
+                ['', '', '', '', '', '', '', ''],
+                ['', '', '', '', '', '', '', ''],
+                ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+                ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+            ];
+            selectedPiece = null;
+            currentPlayer = 'w';
+            gameStarted = false;
+            status.textContent = 'Press Start to begin';
+            drawBoard();
+        }
+
+        // Draw the chessboard and pieces
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    ctx.fillStyle = (row + col) % 2 === 0 ? '#fff' : '#769656';
+                    ctx.fillRect(col * squareSize, row * squareSize, squareSize, squareSize);
+                    if (board[row][col]) {
+                        ctx.fillStyle = board[row][col][0] === 'w' ? '#ddd' : '#333';
+                        ctx.font = '40px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(pieces[board[row][col]], col * squareSize + squareSize / 2, row * squareSize + squareSize / 2);
+                    }
+                }
+            }
+            if (selectedPiece) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                ctx.fillRect(selectedPiece.col * squareSize, selectedPiece.row * squareSize, squareSize, squareSize);
+            }
+        }
+
+        // Start the game
+        startButton.addEventListener('click', () => {
+            initBoard();
+            gameStarted = true;
+            status.textContent = "White's turn";
+            startButton.disabled = true;
+        });
+
+        // Handle clicks on the canvas
+        canvas.addEventListener('click', (e) => {
+            if (!gameStarted) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const col = Math.floor(x / squareSize);
+            const row = Math.floor(y / squareSize);
+
+            if (selectedPiece) {
+                if (isValidMove(selectedPiece.row, selectedPiece.col, row, col)) {
+                    board[row][col] = board[selectedPiece.row][selectedPiece.col];
+                    board[selectedPiece.row][selectedPiece.col] = '';
+                    selectedPiece = null;
+                    drawBoard();
+                    if (isCheckmate(currentPlayer === 'w' ? 'b' : 'w')) {
+                        status.textContent = `${currentPlayer === 'w' ? 'White' : 'Black'} wins by checkmate!`;
+                        gameStarted = false;
+                        startButton.disabled = false;
+                        return;
+                    }
+                    currentPlayer = currentPlayer === 'w' ? 'b' : 'w';
+                    status.textContent = `${currentPlayer === 'w' ? 'White' : 'Black'}'s turn`;
+                } else {
+                    selectedPiece = null;
+                    drawBoard();
+                }
+            } else {
+                if (board[row][col] && board[row][col][0] === currentPlayer) {
+                    selectedPiece = { row, col };
+                    drawBoard();
+                }
+            }
+        });
+
+        // Check if a move is valid
+        function isValidMove(fromRow, fromCol, toRow, toCol) {
+            const piece = board[fromRow][fromCol];
+            const target = board[toRow][toCol];
+            if (target && target[0] === piece[0]) return false;
+
+            let valid = false;
+            switch (piece[1]) {
+                case 'p':
+                    valid = isValidPawnMove(fromRow, fromCol, toRow, toCol, piece[0]);
+                    break;
+                case 'r':
+                    valid = isValidRookMove(fromRow, fromCol, toRow, toCol);
+                    break;
+                case 'n':
+                    valid = isValidKnightMove(fromRow, fromCol, toRow, toCol);
+                    break;
+                case 'b':
+                    valid = isValidBishopMove(fromRow, fromCol, toRow, toCol);
+                    break;
+                case 'q':
+                    valid = isValidRookMove(fromRow, fromCol, toRow, toCol) || isValidBishopMove(fromRow, fromCol, toRow, toCol);
+                    break;
+                case 'k':
+                    valid = isValidKingMove(fromRow, fromCol, toRow, toCol);
+                    break;
+            }
+
+            if (valid) {
+                // Simulate the move to check if it puts own king in check
+                const temp = board[toRow][toCol];
+                board[toRow][toCol] = board[fromRow][fromCol];
+                board[fromRow][fromCol] = '';
+                const inCheck = isKingInCheck(piece[0]);
+                board[fromRow][fromCol] = board[toRow][toCol];
+                board[toRow][toCol] = temp;
+                return !inCheck;
+            }
+            return false;
+        }
+
+        // Pawn movement
+        function isValidPawnMove(fromRow, fromCol, toRow, toCol, color) {
+            const direction = color === 'w' ? -1 : 1;
+            const startRow = color === 'w' ? 6 : 1;
+            // Move forward
+            if (toCol === fromCol && !board[toRow][toCol]) {
+                if (toRow === fromRow + direction) return true;
+                if (fromRow === startRow && toRow === fromRow + 2 * direction && !board[fromRow + direction][toCol]) return true;
+            }
+            // Capture
+            if (Math.abs(toCol - fromCol) === 1 && toRow === fromRow + direction && board[toRow][toCol] && board[toRow][toCol][0] !== color) {
+                return true;
+            }
+            return false;
+        }
+
+        // Rook movement
+        function isValidRookMove(fromRow, fromCol, toRow, toCol) {
+            if (fromRow !== toRow && fromCol !== toCol) return false;
+            const stepRow = fromRow === toRow ? 0 : (toRow > fromRow ? 1 : -1);
+            const stepCol = fromCol === toCol ? 0 : (toCol > fromCol ? 1 : -1);
+            let r = fromRow + stepRow;
+            let c = fromCol + stepCol;
+            while (r !== toRow || c !== toCol) {
+                if (board[r][c]) return false;
+                r += stepRow;
+                c += stepCol;
+            }
+            return true;
+        }
+
+        // Knight movement
+        function isValidKnightMove(fromRow, fromCol, toRow, toCol) {
+            const dr = Math.abs(toRow - fromRow);
+            const dc = Math.abs(toCol - fromCol);
+            return (dr === 2 && dc === 1) || (dr === 1 && dc === 2);
+        }
+
+        // Bishop movement
+        function isValidBishopMove(fromRow, fromCol, toRow, toCol) {
+            if (Math.abs(toRow - fromRow) !== Math.abs(toCol - fromCol)) return false;
+            const stepRow = toRow > fromRow ? 1 : -1;
+            const stepCol = toCol > fromCol ? 1 : -1;
+            let r = fromRow + stepRow;
+            let c = fromCol + stepCol;
+            while (r !== toRow || c !== toCol) {
+                if (board[r][c]) return false;
+                r += stepRow;
+                c += stepCol;
+            }
+            return true;
+        }
+
+        // King movement
+        function isValidKingMove(fromRow, fromCol, toRow, toCol) {
+            const dr = Math.abs(toRow - fromRow);
+            const dc = Math.abs(toCol - fromCol);
+            return dr <= 1 && dc <= 1 && (dr + dc > 0);
+        }
+
+        // Check if king is in check
+        function isKingInCheck(color) {
+            let kingRow, kingCol;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c] === color + 'k') {
+                        kingRow = r;
+                        kingCol = c;
+                        break;
+                    }
+                }
+            }
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c] && board[r][c][0] !== color) {
+                        if (isValidMove(r, c, kingRow, kingCol)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Check for checkmate
+        function isCheckmate(color) {
+            if (!isKingInCheck(color)) return false;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c] && board[r][c][0] === color) {
+                        for (let tr = 0; tr < 8; tr++) {
+                            for (let tc = 0; tc < 8; tc++) {
+                                if (isValidMove(r, c, tr, tc)) {
+                                    const temp = board[tr][tc];
+                                    board[tr][tc] = board[r][c];
+                                    board[r][c] = '';
+                                    const stillInCheck = isKingInCheck(color);
+                                    board[r][c] = board[tr][tc];
+                                    board[tr][tc] = temp;
+                                    if (!stillInCheck) return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Initialize the board on load
+        initBoard();
+    </script>
+</body>
+</html>
